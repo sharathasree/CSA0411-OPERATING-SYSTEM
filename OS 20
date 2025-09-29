@@ -1,0 +1,66 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <unistd.h>
+int data = 0;          
+int read_count = 0;    
+sem_t mutex;    
+sem_t wrt;     
+void* reader(void* arg) {
+    int id = *((int*)arg);
+    while (1) {
+        sem_wait(&mutex);
+        read_count++;
+        if (read_count == 1)
+            sem_wait(&wrt);  
+        sem_post(&mutex);
+        printf("Reader %d: Read data = %d\n", id, data);
+        sleep(1);
+        sem_wait(&mutex);
+        read_count--;
+        if (read_count == 0)
+            sem_post(&wrt); 
+        sem_post(&mutex);
+
+        sleep(1); 
+    }
+}
+void* writer(void* arg) {
+    int id = *((int*)arg);
+    while (1) {
+        sem_wait(&wrt);  // Ensure exclusive access
+
+        data++;
+        printf("Writer %d: Wrote data = %d\n", id, data);
+        sleep(1);
+
+        sem_post(&wrt);  // Release exclusive access
+
+        sleep(2); // Delay before next write
+    }
+}
+
+int main() {
+    pthread_t rtid[5], wtid[2];
+    int i;
+    int reader_id[5], writer_id[2];
+    sem_init(&mutex, 0, 1);
+    sem_init(&wrt, 0, 1);
+    for (i = 0; i < 5; i++) {
+        reader_id[i] = i + 1;
+        pthread_create(&rtid[i], NULL, reader, &reader_id[i]);
+    }
+    for (i = 0; i < 2; i++) {
+        writer_id[i] = i + 1;
+        pthread_create(&wtid[i], NULL, writer, &writer_id[i]);
+    }
+    for (i = 0; i < 5; i++)
+        pthread_join(rtid[i], NULL);
+    for (i = 0; i < 2; i++)
+        pthread_join(wtid[i], NULL);
+    sem_destroy(&mutex);
+    sem_destroy(&wrt);
+
+    return 0;
+}
